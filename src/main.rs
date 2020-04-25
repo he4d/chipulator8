@@ -3,26 +3,66 @@ extern crate sdl2;
 mod chip8;
 
 use chip8::Chip8;
+use sdl2::audio::{AudioCallback, AudioSpecDesired};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::rect::Rect;
 use sdl2::pixels;
+use sdl2::rect::Rect;
 use std::env;
+use std::thread;
 use std::time::Duration;
 
 const SCALE_FACTOR: u32 = 20;
 const SCREEN_WIDTH: u32 = 64 * SCALE_FACTOR;
 const SCREEN_HEIGHT: u32 = 32 * SCALE_FACTOR;
 
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: f32,
+}
+
+impl AudioCallback for SquareWave {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [f32]) {
+        // Generate a square wave
+        for x in out.iter_mut() {
+            *x = self.volume * if self.phase < 0.5 { 1.0 } else { -1.0 };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+    }
+}
+
 fn main() -> Result<(), String> {
     let args = env::args().collect::<Vec<String>>();
     if args.len() < 2 {
-        return Err(format!("Usage: ./chipulator8 chip8application"))
+        return Err(format!("Usage: ./chipulator8 chip8application"));
     }
     let mut chip = Chip8::new();
     chip.load_application(&args[1]);
 
     let sdl_context = sdl2::init()?;
+
+    let audio_subsystem = sdl_context.audio()?;
+    let desired_spec = AudioSpecDesired {
+        freq: Some(44100),
+        channels: Some(1), // mono
+        samples: None,     // default sample size
+    };
+
+    let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        // Show obtained AudioSpec
+        println!("{:?}", spec);
+
+        // initialize the audio callback
+        SquareWave {
+            phase_inc: 240.0 / spec.freq as f32,
+            phase: 0.0,
+            volume: 0.25,
+        }
+    })?;
+
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("chipulator8", SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -108,15 +148,22 @@ fn main() -> Result<(), String> {
                         color = pixels::Color::RGB(255, 255, 255);
                     }
                     canvas.set_draw_color(color);
+
                     let x = x * SCALE_FACTOR;
                     let y = y * SCALE_FACTOR;
-                    let _ = canvas.fill_rect(Rect::new(x as i32, y as i32, SCALE_FACTOR, SCALE_FACTOR))?;
+                    canvas.fill_rect(Rect::new(x as i32, y as i32, SCALE_FACTOR, SCALE_FACTOR))?;
                 }
             }
-            chip.draw_flag = false;
         }
         canvas.present();
-        ::std::thread::sleep(Duration::from_millis(2));
+
+        if chip.sound_timer > 0 {
+            audio_device.resume();
+        } else {
+            audio_device.pause();
+        }
+
+        thread::sleep(Duration::from_millis(2));
     }
     Ok(())
 }

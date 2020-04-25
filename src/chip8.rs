@@ -26,6 +26,7 @@ pub struct Chip8 {
     pub key: [u8; 16],
     pub gfx: [u8; 64 * 32],
     pub draw_flag: bool,
+    pub sound_timer: u8,
     pc: u16,
     opcode: u16,
     i: u16,
@@ -34,7 +35,6 @@ pub struct Chip8 {
     stack: [u16; 16],
     memory: [u8; 4096],
     delay_timer: u8,
-    sound_timer: u8,
 }
 
 impl Chip8 {
@@ -42,7 +42,7 @@ impl Chip8 {
         let mut chip = Chip8 {
             key: [0; 16],
             gfx: [0; 2048],
-            draw_flag: true,
+            draw_flag: false,
             pc: 0x200,
             opcode: 0,
             i: 0,
@@ -59,6 +59,8 @@ impl Chip8 {
         chip
     }
     pub fn emulate_cycle(&mut self) {
+        self.draw_flag = false;
+
         self.opcode =
             (self.memory[self.pc as usize] as u16) << 8 | self.memory[self.pc as usize + 1] as u16;
         match self.opcode & 0xF000 {
@@ -202,7 +204,9 @@ impl Chip8 {
                             self.v[0xF] = 1;
                         }
                         self.v[((self.opcode & 0x0F00) >> 8) as usize] = self.v
-                            [((self.opcode & 0x00F0) >> 4) as usize].overflowing_sub(self.v[((self.opcode & 0x0F00) >> 8) as usize]).0;
+                            [((self.opcode & 0x00F0) >> 4) as usize]
+                            .overflowing_sub(self.v[((self.opcode & 0x0F00) >> 8) as usize])
+                            .0;
                         self.pc += 2;
                     }
                     // 0x8XYE: Shifts VX left by one. VF is set to the value of the most significant bit of VX before the shift
@@ -248,24 +252,23 @@ impl Chip8 {
             // VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn,
             // and to 0 if that doesn't happen
             0xD000 => {
-                let x = self.v[((self.opcode & 0x0F00) >> 8) as usize];
-                let y = self.v[((self.opcode & 0x00F0) >> 4) as usize];
+                let x = (self.opcode & 0x0F00) >> 8 as usize;
+                let y = (self.opcode & 0x00F0) >> 4 as usize;
                 let height = self.opcode & 0x000F;
                 let mut pixel: u16;
 
                 self.v[0xF] = 0;
                 for yline in 0..height {
+                    let y = (self.v[y as usize] + yline as u8) % 32;
                     pixel = self.memory[(self.i + yline) as usize] as u16;
                     for xline in 0..8 {
+                        let x = (self.v[x as usize] + xline as u8) % 64;
                         if (pixel & (0x80 >> xline)) != 0 {
-                            if self.gfx[(x as u16 + xline as u16 + ((y as u16 + yline as u16) * 64))
-                                as usize]
-                                == 1
-                            {
-                                self.v[0xF] = 1;
-                            }
-                            self.gfx[(x as u16 + xline as u16 + ((y as u16 + yline as u16) * 64))
-                                as usize] ^= 1;
+                            let i = (x as u16 + (y as u16 * 64))
+                                as usize;
+                            println!("index: {}", i);
+                            self.v[0xF] |= 1 & self.gfx[i];
+                            self.gfx[i] ^= 1;
                         }
                     }
                 }
@@ -376,9 +379,6 @@ impl Chip8 {
         }
 
         if self.sound_timer > 0 {
-            if self.sound_timer == 1 {
-                println!("BEEP!");
-            }
             self.sound_timer -= 1;
         }
     }
