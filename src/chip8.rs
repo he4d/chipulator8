@@ -383,20 +383,6 @@ impl Chip8 {
         }
     }
 
-    pub fn debug_render(&self) {
-        for y in 0..32 {
-            for x in 0..64 {
-                if self.gfx[(y * 64) + x] == 0 {
-                    print!("0");
-                } else {
-                    print!(" ");
-                }
-            }
-            println!();
-        }
-        println!()
-    }
-
     pub fn load_application(&mut self, filename: &str) {
         println!("Loading: {}", filename);
 
