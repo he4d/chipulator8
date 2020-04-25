@@ -1,2 +1,4 @@
-Chip8 emulator for learning purpose
+chipulator8
 ===
+
+A Chip8 emulator written in rust for learning purposes
