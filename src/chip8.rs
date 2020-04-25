@@ -266,7 +266,6 @@ impl Chip8 {
                         if (pixel & (0x80 >> xline)) != 0 {
                             let i = (x as u16 + (y as u16 * 64))
                                 as usize;
-                            println!("index: {}", i);
                             self.v[0xF] |= 1 & self.gfx[i];
                             self.gfx[i] ^= 1;
                         }
