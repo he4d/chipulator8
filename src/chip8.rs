@@ -264,8 +264,7 @@ impl Chip8 {
                     for xline in 0..8 {
                         let x = (self.v[x as usize] + xline as u8) % 64;
                         if (pixel & (0x80 >> xline)) != 0 {
-                            let i = (x as u16 + (y as u16 * 64))
-                                as usize;
+                            let i = (x as u16 + (y as u16 * 64)) as usize;
                             self.v[0xF] |= 1 & self.gfx[i];
                             self.gfx[i] ^= 1;
                         }
